@@ -388,102 +388,94 @@ fairino_gripper_node
   ↓
 SetDO(...)
 
-High-Level Behavior of fairino_gripper_action_server
+- High-Level Behavior of fairino_gripper_action_server
 1. Receives a GripperCommand goal
 
 MoveIt sends a gripper position request.
 
 The node interprets it as follows:
-
+```bash
 around 0.0 → open
-
 around 0.5 → idle
-
 around 1.0 → close
+```
 
 2. Calls the corresponding Trigger service
 
 Depending on the requested position, it calls one of:
-
+```bash
 /gripper/open
-
 /gripper/close
-
 /gripper/idle
+```
 
 3. Always returns a result to MoveIt
 
 This is very important.
-
 The action must always finish with either:
-
-succeed
-
-abort
+- succeed
+- abort
 
 Otherwise MoveIt execution may remain blocked.
 
 4. Supports cancellation
 
 If the action is canceled, the node attempts a best-effort call to:
-
+```bash
 /gripper/idle
-
+```
 This is useful for safer gripper behavior.
 
-Why This Action Bridge Is Needed
+- Why This Action Bridge Is Needed
 
 The service-based interface from Phase 1 is great for:
 
-manual testing
-
-direct scripting
-
-custom ROS applications
+. manual testing
+. direct scripting
+. custom ROS applications
 
 But MoveIt expects a standard action interface for gripper execution.
 
 So this node acts as the adapter between:
 
-MoveIt expectations
+- MoveIt expectations
+- your custom service-based gripper interface
 
-your custom service-based gripper interface
-
-Joint Feedback for MoveIt
+# Joint Feedback for MoveIt
 
 MoveIt also requires a single coherent /joint_states stream.
 
 At this point you have:
 
-arm joint states from the Fairino arm bridge
-
-fake gripper joint state from fairino_gripper_node
+- arm joint states from the Fairino arm bridge
+- fake gripper joint state from fairino_gripper_node
 
 These must be merged before MoveIt consumes them.
 
-joint_state_merger
+# joint_state_merger
 
 This node merges:
-
+```bash
 /joint_states_robot
-
 /gripper/joint_states
-
+```
 into:
-
+```bash
 /joint_states
+```
 
-Inputs
-
+- Inputs
+```bash
 /joint_states_robot
-
 /gripper/joint_states
+```
 
-Output
-
+- Output
+```bash
 /joint_states
+```
 
-Why the Merger Is Needed
+- Why the Merger Is Needed
 
 MoveIt and robot_state_publisher expect one complete joint state stream.
 
@@ -491,42 +483,38 @@ If the arm and gripper publish on different topics, MoveIt may not reconstruct t
 
 joint_state_merger solves this by:
 
-caching the latest robot arm joint state
-
-caching the latest gripper joint state
-
-periodically publishing a merged JointState
+- caching the latest robot arm joint state
+- caching the latest gripper joint state
+- periodically publishing a merged JointState
 
 The merged output keeps a stable order:
 
-arm joints first
+- arm joints first
+- gripper joint after that
 
-gripper joint after that
-
-Phase 2 Test Procedure
+# Phase 2 Test Procedure
 
 Before launching MoveIt, start the full bridge launch file:
 
+```bash
 source ~/fr_ws/install/setup.bash
 ros2 launch fairino_bridge bridge_fr3wml_gripper.launch.py
+```
 
 This should bring up the full bridge stack needed for:
 
-6-axis arm control
-
-gripper action control
-
-merged joint states
+- 6-axis arm control
+- gripper action control
+- merged joint states
 
 At this point, MoveIt should be able to control both:
 
-the 6-axis Fairino arm
-
-the gripper
+- the 6-axis Fairino arm
+- the gripper
 
 using standard ROS interfaces.
 
-Expected Final Control Flow
+- Expected Final Control Flow
 Arm side
 MoveIt
   ↓
@@ -549,79 +537,96 @@ fairino_gripper_node
 /fairino_remote_command_service
   ↓
 SetDO(...)
-Feedback side
+
+- Feedback side
 Arm feedback       → /joint_states_robot
 Gripper feedback   → /gripper/joint_states
 Both merged by     → joint_state_merger
 Final topic        → /joint_states
-Full Test Workflow
+
+# Full Test Workflow
 Terminal 1 — Fairino low-level command server
+```bash
 source ~/fr_ws/install/setup.bash
 ros2 run fairino_hardware ros2_cmd_server
+```
 Terminal 2 — Full bridge stack
+```bash
 source ~/fr_ws/install/setup.bash
 ros2 launch fairino_bridge bridge_fr3wml_gripper.launch.py
+```
 Terminal 3 — Launch MoveIt
 
 Launch your MoveIt configuration as usual.
 
 At this point, you should be able to:
-
-move the 6-axis robot
-
-command the gripper through GripperCommand
+. move the 6-axis robot
+. command the gripper through GripperCommand
 
 see a correct combined robot state in MoveIt and RViz
 
-Package Philosophy
+## Package Philosophy
 
 The important idea behind this package is not only gripper control.
 
 It is the architectural pattern:
 
-keep high-level logic ROS-native
+- keep high-level logic ROS-native
 
-isolate vendor-specific SDK syntax in a bridge node
+- isolate vendor-specific SDK syntax in a bridge node
 
-expose reusable interfaces to the rest of the system
+- expose reusable interfaces to the rest of the system
 
-make the application easier to port to a different robot platform later
+- make the application easier to port to a different robot platform later
 
 In other words:
 
 application code should call ROS interfaces, not robot SDK strings.
 
 Useful Commands
-Build
+- Build
+```bash
 cd ~/fr_ws
 colcon build
-Source
+```
+- Source
+```bash
 source ~/fr_ws/install/setup.bash
-Run Fairino command server
+```
+- Run Fairino command server
+```bash
 ros2 run fairino_hardware ros2_cmd_server
-Run gripper node
+```
+- Run gripper node
+```bash
 ros2 run fairino_gripper fairino_gripper_node
-Test gripper services
+```
+- Test gripper services
+```bash
 ros2 service call /gripper/idle std_srvs/srv/Trigger {}
 ros2 service call /gripper/open std_srvs/srv/Trigger {}
 ros2 service call /gripper/close std_srvs/srv/Trigger {}
-Run full bridge stack
+```
+- Run full bridge stack
+```bash
 ros2 launch fairino_bridge bridge_fr3wml_gripper.launch.py
-Summary
+```
+
+## Summary
 
 fairino_gripper provides a ROS 2 bridge for gripper control on top of Fairino hardware.
 
 It allows you to:
 
-hide vendor-specific SetDO(...) syntax
+- hide vendor-specific SetDO(...) syntax
 
-expose high-level ROS 2 services for gripper control
+- expose high-level ROS 2 services for gripper control
 
-expose a MoveIt-compatible GripperCommand action
+- expose a MoveIt-compatible GripperCommand action
 
-publish gripper joint feedback
+- publish gripper joint feedback
 
-merge arm + gripper states into a single /joint_states
+- merge arm + gripper states into a single /joint_states
 
 This makes the overall system much cleaner, more ROS-native, and easier to reuse across different robotic platforms.
 
