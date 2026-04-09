@@ -26,7 +26,9 @@ setup(
         'console_scripts': [
             'fairino_gripper_control = fairino_gripper.fairino_gripper_control:main',
             'gripper_action_server = fairino_gripper.gripper_action_server:main',
-            'joint_state_merger = fairino_gripper.joint_state_merger:main'
+            'joint_state_merger = fairino_gripper.joint_state_merger:main',
+            'fairino_gripper_suction_control = fairino_gripper.fairino_gripper_suction_control:main',
+            'gripper_suction_action_server = fairino_gripper.gripper_suction_action_server:main',
         ],
     },
 )
