@@ -1,22 +1,62 @@
-# fairino_gripper
+# 🤏 fairino_gripper
 
-`fairino_gripper` is a ROS 2 Python package that provides a **hardware-agnostic gripper bridge** for Fairino-based systems.
+> **The gripper + suction-cup driver bridge** for Fairino FR-series cobots. Hides the vendor's `SetDO(...)` digital-output syntax behind clean ROS 2 services and a MoveIt-compatible `GripperCommand` action.
 
-Its purpose is to hide vendor-specific digital output commands such as:
+[![ROS 2 Humble](https://img.shields.io/badge/ROS%202-Humble-blue)](https://docs.ros.org/en/humble/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE)
+[![Python](https://img.shields.io/badge/Language-Python-yellow)](https://www.python.org/)
 
-```bash
-{cmd_str: 'SetDO(0,0)'}
+---
+
+## What it is
+
+`fairino_gripper` is the **gripper driver layer** in the three-tier industrial robotics architecture. It is the sister package of [`fairino_bridge`](https://github.com/LearnRoboticsWROS/fairino_bridge_master_class) (which wraps the robot arm) and exposes the gripper through standard ROS 2 interfaces:
+
+| Interface | Type | Purpose |
+|---|---|---|
+| `/gripper/open`, `/gripper/close`, `/gripper/idle` | `std_srvs/Trigger` | Soft gripper control |
+| `/gripper/suction_on`, `/gripper/suction_off` | `std_srvs/Trigger` | Suction-cup control |
+| `gripper_command` | `control_msgs/GripperCommand` | MoveIt-compatible action |
+| `/joint_states` | `sensor_msgs/JointState` | Merged arm + gripper feedback |
+
+The application layer ([`fr3wml_industrial_bt`](https://github.com/LearnRoboticsWROS/fr3wml_industrial_bt)) registers these Trigger services in the BT `ToolRegistry` and invokes them via the `ActivateTool` / `ReleaseTool` bricks — without ever touching `SetDO`.
+
+### Where it sits in the stack
+
 ```
-sent through:
-```bash
-/fairino_remote_command_service
+┌──────────────────────────────────────────────────────┐
+│ APPLICATION   fr3wml_industrial_bt                   │
+│   uses ActivateTool / ReleaseTool BT bricks          │
+└──────────────────────────────────────────────────────┘
+                         ▼
+┌──────────────────────────────────────────────────────┐
+│ FRAMEWORK     industrial_bt_framework::ToolRegistry  │
+└──────────────────────────────────────────────────────┘
+                         ▼
+┌──────────────────────────────────────────────────────┐
+│ DRIVER        fairino_gripper  ← YOU ARE HERE        │
+│   • /gripper/* Trigger services                      │
+│   • GripperCommand action                            │
+│   • DO bridge → vendor SetDO(...)                    │
+└──────────────────────────────────────────────────────┘
+                         ▼
+┌──────────────────────────────────────────────────────┐
+│ VENDOR SDK    /fairino_remote_command_service        │
+└──────────────────────────────────────────────────────┘
 ```
 
-and replace them with clean ROS 2 interfaces that are easier to reuse, maintain, and integrate with MoveIt.
+> Despite the name, this package controls **both** the soft gripper and the suction cup — they're two tools on the same end-effector flange, driven by different digital outputs on the Fairino controller.
 
-This package follows a core ROS design principle:
+---
 
-keep the application layer hardware agnostic, and isolate vendor-specific syntax inside dedicated bridge nodes.
+## Why this design
+
+The Fairino controller exposes a single low-level service `/fairino_remote_command_service` (type `fairino_msgs/srv/RemoteCmdInterface`) that accepts vendor strings like `SetDO(0,1)`. Two problems with using it directly from applications:
+
+1. **Tight coupling.** Every application has to know the vendor's command syntax + DO mapping.
+2. **Not MoveIt-compatible.** MoveIt's gripper controller expects a `GripperCommand` action.
+
+`fairino_gripper` solves both: it sits between the vendor service and the application, exposing ROS-native interfaces. Swap the gripper hardware → swap this package. The application stays untouched.
 
 ---
 
@@ -614,19 +654,34 @@ ros2 launch fairino_bridge bridge_fr3wml_gripper.launch.py
 
 ## Summary
 
-fairino_gripper provides a ROS 2 bridge for gripper control on top of Fairino hardware.
+`fairino_gripper` is the **gripper + suction driver** in the three-tier industrial robotics stack. It:
 
-It allows you to:
+- Hides vendor-specific `SetDO(...)` syntax
+- Exposes high-level Trigger services for soft-gripper and suction-cup control
+- Provides a MoveIt-compatible `GripperCommand` action
+- Publishes gripper joint feedback
+- Merges arm + gripper states into a single `/joint_states`
 
-- hide vendor-specific SetDO(...) syntax
+Result: the application layer (BT framework, MoveIt, custom controllers) controls grippers through ROS-native interfaces — no vendor strings, no DO mapping, ready to swap to a different gripper by replacing only this package.
 
-- expose high-level ROS 2 services for gripper control
+---
 
-- expose a MoveIt-compatible GripperCommand action
+## 🔗 Related repositories
 
-- publish gripper joint feedback
+| Layer | Repository |
+|---|---|
+| Vendor SDK | [frcobot_ros2](https://github.com/FAIR-INNOVATION/frcobot_ros2) |
+| Robot driver | [fairino_bridge](https://github.com/LearnRoboticsWROS/fairino_bridge_master_class) |
+| Framework | [industrial_bt_framework](https://github.com/LearnRoboticsWROS/industrial_bt_framework) |
+| Application (FR3WML) | [fr3wml_industrial_bt](https://github.com/LearnRoboticsWROS/fr3wml_industrial_bt) |
+| MoveIt config | [fr3wml_fr5_camera_gripper_moveit_config](https://github.com/LearnRoboticsWROS/fr3wml_camera_gripper_moveit_config_master_class) |
 
-- merge arm + gripper states into a single /joint_states
+---
 
-This makes the overall system much cleaner, more ROS-native, and easier to reuse across different robotic platforms.
+## License
 
+Apache 2.0. See [LICENSE](LICENSE).
+
+---
+
+Built with ❤️ for Learn Robotics with ROS.
